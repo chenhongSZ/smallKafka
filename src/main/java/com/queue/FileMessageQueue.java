@@ -70,6 +70,8 @@ public class FileMessageQueue {
         context.getWritePointer().addAndGet(Message.HEAD_SIZE + length);
         context.hibernate();
 
+        System.out.println("已经成功写入队列");
+
     }
 
     private void changeWriteBlockIfNessesary(Message message) {
@@ -116,7 +118,7 @@ public class FileMessageQueue {
 
         Message message = new Message();
 
-        boolean empty = changeReadBlockIfNessesary(message);
+        boolean empty = changeReadBlockIfNessesary();
 
         if (empty) {
             return null;
@@ -146,7 +148,7 @@ public class FileMessageQueue {
         return message;
     }
 
-    private boolean changeReadBlockIfNessesary(Message message) throws Exception {
+    private boolean changeReadBlockIfNessesary() throws Exception {
 
         int length = 0;
 

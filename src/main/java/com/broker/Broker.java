@@ -1,11 +1,11 @@
 package com.broker;
 
+import com.base.Message;
 import com.queue.FileMessageQueue;
+import com.util.ByteUtil;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -39,19 +39,22 @@ public class Broker {
     private static FileMessageQueue queue = null;
 
     /**
-     * body_length
+     * hasFullHead 头部已经读满
      */
-    private static int bodyLength = -1;
+    private static boolean hasFullHead = false;
 
     // 创建读取数据缓冲器
-    private ByteBuffer buffer = ByteBuffer.allocate(1024 * 1024 + 4);
+    private ByteBuffer headBuffer = ByteBuffer.allocate(4);
+
+    // 创建读取数据缓冲器
+    private ByteBuffer bodyBuffer = null;
 
     public static void main(String[] args) throws Exception {
 
-        new Broker().start(port);
-
         queue = new FileMessageQueue();
         queue.init();
+
+        new Broker().start(port);
 
     }
 
@@ -75,7 +78,7 @@ public class Broker {
 
     }
 
-    public void listen() throws IOException {
+    public void listen() throws Exception {
 
         // 使用轮询访问selector
         while (!stop) {
@@ -112,7 +115,7 @@ public class Broker {
         }
     }
 
-    private void handleAcceptable(SelectionKey key) throws IOException, ClosedChannelException {
+    private void handleAcceptable(SelectionKey key) throws Exception {
         ServerSocketChannel server = (ServerSocketChannel) key.channel();
         // 获得客户端连接通道
         SocketChannel channel = server.accept();
@@ -122,35 +125,54 @@ public class Broker {
         channel.register(selector, SelectionKey.OP_READ);
     }
 
-    private void handleReadable(SelectionKey key) throws IOException {
+    private void handleReadable(SelectionKey key) throws Exception {
 
         // 有可读数据事件
         // 获取客户端传输数据可读取消息通道。
+
         SocketChannel channel = (SocketChannel) key.channel();
-        int read = channel.read(buffer);
 
-        while (buffer.remaining() > 0) {
+        if (!hasFullHead) {
+            int read = channel.read(headBuffer);
+            //并且缓存区的长度大于4(包头部分已经接受完毕)
+            if (!headBuffer.hasRemaining()) {
+                int bodyLength = ByteUtil.byte2int(headBuffer.array());
 
-        }
+                //清空 后续使用
+                headBuffer.clear();
 
+                // body buffer
+                bodyBuffer = ByteBuffer.allocate(bodyLength);
+                hasFullHead = true;
 
-        headLength += read;
-
-        if (read >= 4) {
-
-        }
-
-        if (read > 0) {
-            buffer.getInt();
-
-            byte[] data = buffer.array();
-            String message = new String(data, 0, read);
-
-            System.out.println(message);
+            }
+            else {
+                return;
+            }
         }
         else {
-            channel.close();
+
+            if (bodyBuffer.hasRemaining()) {
+                channel.read(bodyBuffer);
+            }
+
+            if (bodyBuffer.hasRemaining()) {
+                return;
+
+            }else {
+                byte[] bodyArr = bodyBuffer.array();
+
+                //清空 后续使用
+                bodyBuffer.clear();
+
+                // 写入队列
+                queue.write(new Message(bodyArr.length, bodyArr));
+            }
+
+
         }
+
+
     }
 
 }

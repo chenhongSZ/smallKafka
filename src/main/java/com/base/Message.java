@@ -20,6 +20,14 @@ public class Message {
      */
     private byte[] content;
 
+    public Message() {
+    }
+
+    public Message(int length, byte[] content) {
+        this.length = length;
+        this.content = content;
+    }
+
     public int getLength() {
         return length;
     }
