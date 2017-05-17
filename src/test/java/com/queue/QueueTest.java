@@ -26,7 +26,7 @@ public class QueueTest {
 
     }
 
-    //@Test
+    @Test
     public void write() throws Exception {
         FileMessageQueue fsq = new FileMessageQueue();
         fsq.init();

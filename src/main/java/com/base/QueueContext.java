@@ -19,7 +19,7 @@ public class QueueContext {
     /**
      * 每个文件块的大小
      */
-    public final static String WORK_SPACE = "E:/ws/";
+    public final static String WORK_SPACE = "/Users/chenhong/study/test/";
 
     /**
      * 索引文件
