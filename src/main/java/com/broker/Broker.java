@@ -1,9 +1,11 @@
 package com.broker;
 
 import com.base.Message;
+import com.base.NetworkMessage;
 import com.queue.FileMessageQueue;
 import com.util.ByteUtil;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -11,7 +13,6 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
-
 
 /**
  * Created by atomchen on 2016/8/23.
@@ -38,17 +39,6 @@ public class Broker {
      */
     private static FileMessageQueue queue = null;
 
-    /**
-     * hasFullHead 头部已经读满
-     */
-    private static boolean hasFullHead = false;
-
-    // 创建读取数据缓冲器
-    private ByteBuffer headBuffer = ByteBuffer.allocate(4);
-
-    // 创建读取数据缓冲器
-    private ByteBuffer bodyBuffer = null;
-
     public static void main(String[] args) throws Exception {
 
         queue = new FileMessageQueue();
@@ -66,7 +56,7 @@ public class Broker {
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
 
         serverChannel.configureBlocking(false);
-        serverChannel.socket().bind(new InetSocketAddress(port));
+        serverChannel.socket().bind(new InetSocketAddress("10.8.6.87", port));
 
         // 将通道管理器与通道绑定，并为该通道注册SelectionKey.OP_ACCEPT事件，
         // 只有当该事件到达时，Selector.select()会返回，否则一直阻塞。
@@ -94,18 +84,15 @@ public class Broker {
                 iterator.remove();
 
                 if (key.isAcceptable()) {
-
                     System.out.println("isAcceptable");
                     handleAcceptable(key);
 
-                }
-                else if (key.isReadable()) {
+                } else if (key.isReadable()) {
 
                     System.out.println("isReadable");
                     handleReadable(key);
 
-                }
-                else if (key.isConnectable()) {
+                } else if (key.isConnectable()) {
 
                     System.out.println("isConnectable");
                     //handleConnectable(key);
@@ -122,57 +109,105 @@ public class Broker {
         channel.configureBlocking(false);
 
         // 在与客户端连接成功后，为客户端通道注册SelectionKey.OP_READ事件。
-        channel.register(selector, SelectionKey.OP_READ);
+
+        NetworkMessage networkMessage = new NetworkMessage();
+
+        channel.register(selector, SelectionKey.OP_READ, networkMessage);
     }
 
     private void handleReadable(SelectionKey key) throws Exception {
 
-        // 有可读数据事件
-        // 获取客户端传输数据可读取消息通道。
-
         SocketChannel channel = (SocketChannel) key.channel();
+        NetworkMessage networkMessage = (NetworkMessage) key.attachment();
 
-        if (!hasFullHead) {
-            int read = channel.read(headBuffer);
-            //并且缓存区的长度大于4(包头部分已经接受完毕)
-            if (!headBuffer.hasRemaining()) {
-                int bodyLength = ByteUtil.byte2int(headBuffer.array());
+        try {
 
-                //清空 后续使用
-                headBuffer.clear();
+            // 有可读数据事件
+            // 获取客户端传输数据可读取消息通道。
 
-                // body buffer
-                bodyBuffer = ByteBuffer.allocate(bodyLength);
-                hasFullHead = true;
+            if (!networkMessage.isFullHead()) {
+                int read = channel.read(networkMessage.getHeadBuffer());
 
+                if (read == -1) {
+                    channel.close();
+                }
+
+                //并且缓存区的长度大于4(包头部分已经接受完毕)
+                if (!networkMessage.getHeadBuffer().hasRemaining()) {
+                    int bodyLength = ByteUtil.byte2int(networkMessage.getHeadBuffer().array());
+
+                    //清空 后续使用
+                    networkMessage.getHeadBuffer().clear();
+                    networkMessage.setFullHead(true);
+
+                    if (bodyLength < 0) {
+
+                        //订阅的
+                        ByteBuffer byteBuffer = ByteBuffer.allocate(4 + 1024);
+
+                        Message message;
+                        int count = 0;
+                        while ((message = queue.read()) != null) {
+
+                            byteBuffer.put(ByteUtil.int2byte(message.getLength()));
+                            byteBuffer.put(message.getContent());
+
+                            byteBuffer.flip();
+                            //如果 result == 0  表明缓冲区已经满了，可以注册写事件
+                            int result = channel.write(byteBuffer);
+                            System.out.println("result:" + result);
+                            byteBuffer.clear();
+
+                            System.out.println("send,count=" + ++count);
+
+                        }
+
+                        byteBuffer.clear();
+                        byteBuffer.put(ByteUtil.int2byte(-1));
+                        System.out.println("send,count=-1");
+                        byteBuffer.flip();
+                        channel.write(byteBuffer);
+
+                        networkMessage.setBodyBuffer(ByteBuffer.allocate(10));
+
+                    } else {
+                        // body buffer
+                        networkMessage.setBodyBuffer(ByteBuffer.allocate(bodyLength));
+                    }
+
+                } else {
+                    return;
+                }
+            } else {
+
+                if (networkMessage.getBodyBuffer().hasRemaining()) {
+                    int read = channel.read(networkMessage.getBodyBuffer());
+
+                    if (read == -1) {
+                        channel.close();
+                    }
+                }
+
+                if (networkMessage.getBodyBuffer().hasRemaining()) {
+                    return;
+
+                } else {
+                    byte[] bodyArr = networkMessage.getBodyBuffer().array();
+
+                    //清空 后续使用
+                    networkMessage.getBodyBuffer().clear();
+                    networkMessage.getHeadBuffer().clear();
+                    networkMessage.setFullHead(false);
+
+                    // 写入队列
+                    queue.write(new Message(bodyArr.length, bodyArr));
+                }
             }
-            else {
-                return;
-            }
+
+        } catch (IOException e) {
+            channel.close();
+            e.printStackTrace();
         }
-        else {
-
-            if (bodyBuffer.hasRemaining()) {
-                channel.read(bodyBuffer);
-            }
-
-            if (bodyBuffer.hasRemaining()) {
-                return;
-
-            }else {
-                byte[] bodyArr = bodyBuffer.array();
-
-                //清空 后续使用
-                bodyBuffer.clear();
-
-                // 写入队列
-                queue.write(new Message(bodyArr.length, bodyArr));
-            }
-
-
-        }
-
-
     }
 
 }

@@ -5,7 +5,6 @@ package com.util;
  */
 public class ByteUtil {
 
-
     public static byte[] int2byte(int res) {
         byte[] targets = new byte[4];
 
@@ -19,8 +18,16 @@ public class ByteUtil {
     public static int byte2int(byte[] res) {
         // 一个byte数据左移24位变成0x??000000，再右移8位变成0x00??0000
 
-        int targets = (res[0] & 0xff) | ((res[1] << 8) & 0xff00) // | 表示安位或
+        int targets = (res[0] & 0xff) | ((res[1] << 8) & 0xff00) // | 表示按位或
                 | ((res[2] << 24) >>> 8) | (res[3] << 24);
+        return targets;
+    }
+
+    public static int byte2int(byte[] res, int start) {
+        // 一个byte数据左移24位变成0x??000000，再右移8位变成0x00??0000
+
+        int targets = (res[0 + start] & 0xff) | ((res[1 + start] << 8) & 0xff00) // | 表示按位或
+                | ((res[2 + start] << 24) >>> 8) | (res[3 + start] << 24);
         return targets;
     }
 }

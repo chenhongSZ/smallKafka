@@ -70,8 +70,6 @@ public class FileMessageQueue {
         context.getWritePointer().addAndGet(Message.HEAD_SIZE + length);
         context.hibernate();
 
-        System.out.println("已经成功写入队列");
-
     }
 
     private void changeWriteBlockIfNessesary(Message message) {

@@ -8,26 +8,25 @@ import org.junit.Test;
  */
 public class QueueTest {
 
-
     @Test
     public void read() throws Exception {
         FileMessageQueue fsq = new FileMessageQueue();
         fsq.init();
 
-
         Message result = fsq.read();
         int i = 0;
 
         while (result != null) {
-            System.out.println(new String(result.getContent(), "UTF-8") + (i++));
+            System.out.println(new String(result.getContent(), "UTF-8") + (++i));
             result = fsq.read();
-
         }
 
     }
 
     @Test
     public void write() throws Exception {
+        int count = 0;
+
         FileMessageQueue fsq = new FileMessageQueue();
         fsq.init();
 
@@ -40,11 +39,10 @@ public class QueueTest {
 
         for (int i = 0; i < 1000; i++) {
             fsq.write(msg);
+
+            System.out.println("write:" + ++count);
         }
 
-        System.out.println("ok");
-
     }
-
 
 }

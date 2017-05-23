@@ -14,12 +14,12 @@ public class QueueContext {
     /**
      * 每个文件块的大小
      */
-    private final static int BLOCK_SIZE = 1024;
+    private final static int BLOCK_SIZE = 1024 * 64;
 
     /**
      * 每个文件块的大小
      */
-    public final static String WORK_SPACE = "/Users/chenhong/study/test/";
+    public final static String WORK_SPACE = "E:\\test\\";
 
     /**
      * 索引文件
@@ -51,7 +51,6 @@ public class QueueContext {
      */
     private AtomicInteger writeBlock = new AtomicInteger(0);
 
-
     /**
      * 从本地文件里读出数据
      */
@@ -62,7 +61,6 @@ public class QueueContext {
                 INDEX_FILE.createNewFile();
             }
 
-
             raf = new RandomAccessFile(INDEX_FILE, "rw");
             raf.seek(0);
 
@@ -70,8 +68,7 @@ public class QueueContext {
             index.getWriteBlock().set(raf.readInt());
             index.getReadPointer().set(raf.readInt());
             index.getWritePointer().set(raf.readInt());
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -89,8 +86,7 @@ public class QueueContext {
             raf.writeInt(index.getReadPointer().get());
             raf.writeInt(index.getWritePointer().get());
 
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
